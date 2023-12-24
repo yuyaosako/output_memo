@@ -17,6 +17,11 @@
     ~~~
 
 ### 【引数・フィクスチャ】
+- フィクスチャを使用するメリット
+    - 明示的に呼び出す必要がない。
+    - スコープ指定により、特定の範囲で状態を維持できる。
+    - テスト後、自動的にクリーンアップされる。
+
 - `@pytest.mark.parametrize`
     - 同じテストを複数のパラメータで簡単に行える。
 
@@ -127,10 +132,13 @@
         - テスト駆動開発などで、先にテストを作る場合
         -   バグが起こっているが、すぐに対応できない場合(忘れないようにstrict=Trueを付けておく。)<br> など
 - `@pytest.mark.usefixtures(fixture名)`
-    - 値を返さないfixtureを引数に渡す必要がなくなる。
+    - 使用することで、値を返さないfixtureを引数に渡す必要がなくなる。
+    - ケースにのみ使用できるため、fixtureからfixtureを呼び出す際は引数に設定する必要がある。
 
 
 ## 疑問
 - mock, patch周りの違いは？
 - 実装した関数だけでなく、datetime.now()などの標準モジュール等の置き換えは可能？
 - APIClient, CoreAPIClient, RequestsClient辺りの違いは？
+- conftest.pyに記述しているscope="session"のfixtureの引数からdjango_db_setupを削除すると挙動がおかしくなる。
+- scopeがclass以上のfixtureでDBアクセスしようとした際、with django_db_blocker.unblock():がないとエラーになる。
