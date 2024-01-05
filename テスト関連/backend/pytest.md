@@ -1,5 +1,5 @@
 # pytest周りの整理
-### 【全般】
+## 【全般】
 - プロジェクト内に複数のappが存在する場合のフォルダ構成は、<br>testsフォルダを1つ作り、その中にapp毎のディレクトリを作って格納していく形で良さそう。
 
 - pytest.iniにaddoptsセクションを利用することで、コマンドラインで使用するオプションをデフォルトで設定できる。
@@ -8,15 +8,20 @@
     - assert が楽。
     - fixtureの利用。
 
-### 【実行時】
+## 【実行時】
 - テスト関数の実行中に例外が発生した場合はFAILED、fixtureの実行中に発生した場合はERRORになる。
+
+- 1ケースだけ実行したい場合は以下の記述をする。
+    - クラスベースの場合：`pytest (path)::(TestClass)::(test_method)`
+    - 関数ベースの場合　：`pytest (path)::(test_method)`
+
 - 例外になることを確認するケースでは以下の形を用いる
-    ~~~
+    ~~~python
     with pytest.raises(Exception名):
         処理名
     ~~~
 
-### 【引数・フィクスチャ】
+## 【引数・フィクスチャ】
 - フィクスチャを使用するメリット
     - 明示的に呼び出す必要がない。
     - スコープ指定により、特定の範囲で状態を維持できる。
@@ -57,8 +62,6 @@
         - `yield 変数` の記述でケース側で変数を受け取れる
         - データを削除するにはyieldの後にdelete処理を加える。
 
-- `monkeypatch.setenv(env_name, "")`
-    - 上記にて、envデータの書き換えができる
 
 - `caplog` : ログ出力のテストができる。
     - `caplog.record_tuples`を使用すると(logger_name, log_level, message)のリストが返される。
@@ -69,22 +72,24 @@
     <br>※「conftest.py」は同階層と親階層を利用できる。
 
 - pytest-djangoでセットアップより前に何かしたい場合は、以下の設定を加える。
-    ~~~
+    ~~~python
     @pytest.hookimpl(tryfirst=True)
         def pytest_load_initial_conftests(early_config, parser, args):
     ~~~
 
-### 【DB】
+## 【DB】
 - loaddataで入れているマスタデータはcall_command()を利用することで、テストDBに入れることも可能。<br>但し、フォルダ配下のファイルを*で指定はできずファイル名を指定する必要あり。
-
 
 - pytest-djangoのDBアクセスについて
     - `@pytest.mark.django_db`
         - pytest-djangoではデフォルトではDBアクセスができず、このmarkを使用することでアクセス可能となる。
+        - @pytest.mark.django_dbを使用しないと、各ケースでのDB操作が影響を及ぼし合う。
         - テストケースごとのDB操作は互いに独立し、影響を与えない。
             - デフォルト：テスト開始時にトランザクションを開始し、終了時にロールバックをする
             - transaction=True : テスト実行後DBフラッシュし、コミットする（より高速）
             - reset_sequences=True : オートインクリメントの値をリセットする。transaction=Trueと一緒に使う。
+        - 基本的にテスト関数やメソッドに対して使用される。
+            - 故に、fixtureに対してもscopeがfunctionであれば使用できるが、それより広いscopeの場合にはセットアップのタイミングが上手くいかなくなる。
     - `--resource-db`
         - DBの再利用を行うことができて初期セットアップ時の時間短縮となる。
         - `if not request.config.getoption("--reuse-db"):` を使うと--resource-dbを設定した時にその処理を行わない。
@@ -95,7 +100,7 @@
 
     - テストケースに応じてfixtureに渡す値を変更する方法
         - ケース側：@pytest.mark.parametrizeの引数にfixture名と値、indirect=[fixture名]を与える。
-            ~~~
+            ~~~python
             @pytest.mark.parametrize(
                 "create_base_data",
                 [
@@ -106,23 +111,32 @@
             )
             ~~~
         - fixture側：引数にrequestを設定し、paramを受け取って使用する。
-            ~~~
+            ~~~python
             @pytest.fixture
             def create_base_data(request):
                 key = request.param["key"]
                 value = request.param["value"]
             ~~~
+    - `django_db_blocker `
+        - 使用することで、テストセッション全体にわたるデータベースアクセスをブロックする。
+        - `django_db_blocker.unblock()`を呼ぶことで、一時的にデータベースアクセスを許可する。
+        - scopeがclass以上のfixture内でDBアクセスをする際は`with django_db_blocker.unblock():`を利用する。
+    - `django_db_setup`
+        - Djangoのデフォルトのテストランナーが提供するfixtureであり、テストセッション全体で1回だけデータベースを設定する。
+        - デフォルトの実装ではmigrationを実行してDBを作成し、テスト実行後にDBを削除する挙動を取る。
+        - 複数のfixtureにdjango_db_setupを引数で与えるのは一般的でない。
+        - つまり、scopeがsessionでデータの作成を行うfixtureを実装する際はdjango_db_setupをオーバーライドすると良い。
 
-### 【API】
-- rest_frameworkのAPIClientを利用すると簡単にAPI接続をテストできる。
-    - urlを指定する場合にreverseでnameから逆引きができるが、以下の点に注意。
-        1. 同プロジェクトにアプリケーションが複数ある場合は、reverse('アプリケーション名:name名')で指定できる。
-        2. def createに繋ぐには、name名をname-listとしてPOST通信することで接続可能。
-        3. 一方、リソースの詳細情報の取得、更新、削除にはname-detailを使用する。
 
-- mocker.patchを使用することで、メソッドや外部API接続をmock化できる。
+## 【モック】
+- `pytest-mock`
+    - unittest.mockをベースに作られているため、ほとんどの機能が同一。
+    - pytestの拡張として提供されているため、pytestのテストケース内で簡単にmockerオブジェクトを使用できる。
+- envデータの書き換えは以下の2パターンがあるが、monkeypatchを利用する方が一般的。
+    - monkeypatchを利用：`monkeypatch.setenv(env_name, value)`
+    - pytest-mockを利用：`mocker.patch.dict(os.environ, {env_name: value})`
 
-### 【マーカー】
+## 【マーカー】
 - `@pytest.mark.skip(reason="")`
     - スキップしたい場合に使用。reasonにスキップ理由を入れられる。
 - `@pytest.mark.skipif()`
@@ -135,10 +149,14 @@
     - 使用することで、値を返さないfixtureを引数に渡す必要がなくなる。
     - ケースにのみ使用できるため、fixtureからfixtureを呼び出す際は引数に設定する必要がある。
 
+## 【API】
+- rest_frameworkのAPIClientを利用すると簡単にAPI接続をテストできる。
+    - urlを指定する場合にreverseでnameから逆引きができるが、以下の点に注意。
+        1. 同プロジェクトにアプリケーションが複数ある場合は、reverse('アプリケーション名:name名')で指定できる。
+        2. def createに繋ぐには、name名をname-listとしてPOST通信することで接続可能。
+        3. 一方、リソースの詳細情報の取得、更新、削除にはname-detailを使用する。
 
 ## 疑問
 - mock, patch周りの違いは？
 - 実装した関数だけでなく、datetime.now()などの標準モジュール等の置き換えは可能？
 - APIClient, CoreAPIClient, RequestsClient辺りの違いは？
-- conftest.pyに記述しているscope="session"のfixtureの引数からdjango_db_setupを削除すると挙動がおかしくなる。
-- scopeがclass以上のfixtureでDBアクセスしようとした際、with django_db_blocker.unblock():がないとエラーになる。
