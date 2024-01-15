@@ -20,6 +20,14 @@
     with pytest.raises(Exception名):
         処理名
     ~~~
+- `@pytest.mark.skip(reason="")`
+    - スキップしたい場合に使用。reasonにスキップ理由を入れられる。
+- `@pytest.mark.skipif()`
+    - 条件付きでスキップしたい場合に使用。
+- `@pytest.mark.xfail()`
+    - 一時的に失敗を許可する場合に使用。
+        - テスト駆動開発などで、先にテストを作る場合
+        -   バグが起こっているが、すぐに対応できない場合(忘れないようにstrict=Trueを付けておく。)<br> など
 
 ## 【引数・フィクスチャ】
 - フィクスチャを使用するメリット
@@ -62,6 +70,9 @@
         - `yield 変数` の記述でケース側で変数を受け取れる
         - データを削除するにはyieldの後にdelete処理を加える。
 
+- `@pytest.mark.usefixtures(fixture名)`
+    - 使用することで、値を返さないfixtureを引数に渡す必要がなくなる。
+    - ケースにのみ使用できるため、fixtureからfixtureを呼び出す際は引数に設定する必要がある。
 
 - `caplog` : ログ出力のテストができる。
     - `caplog.record_tuples`を使用すると(logger_name, log_level, message)のリストが返される。
@@ -132,22 +143,30 @@
 - `pytest-mock`
     - unittest.mockをベースに作られているため、ほとんどの機能が同一。
     - pytestの拡張として提供されているため、pytestのテストケース内で簡単にmockerオブジェクトを使用できる。
+    - fixtureでmockが使用できるようになる。
+    - 毎回固定値を使う場合は`return_value`を、渡される引数に応じて値を変える場合は`side_effect`を使用する。
 - envデータの書き換えは以下の2パターンがあるが、monkeypatchを利用する方が一般的。
     - monkeypatchを利用：`monkeypatch.setenv(env_name, value)`
     - pytest-mockを利用：`mocker.patch.dict(os.environ, {env_name: value})`
+- pytest-mockは、関数、メソッドの挙動を制御したり、呼び出しの検証等に使用する。また、外部API接続もpytest-mockを使うと良い。
+- monkeypatchは、環境変数、グローバル変数、ファイルシステムなど外部の状態を制御するのに利用する。
+- datetime.datetimeなどのイミュータブル(変更不可能)なオブジェクトでは、now()などのメソッドをmock化できない。<br>対応方法としては以下のパターンがある。
+    1. pytest-freezegunの使用
+        - `@pytest.mark.freeze_time(datetime.datetime(2000, 1, 2, 3, 4))` などのマーカー記述で置き換えが可能。
+    2. datetime.datetimeをmock化した後、モックのnowメソッドを設定
+        ~~~python
+        mocker.patch("パス名.datetime", **{
+            "now.return_value": datetime(2023, 1, 9, 20, 0, 0)
+        })
+        ~~~
+    3. datetime.datetime.nowを返すメソッドを作っておき、そのメソッドをmock化する。
+        ~~~python
+        def get_now():
+            return datetime.datetime.now()
 
-## 【マーカー】
-- `@pytest.mark.skip(reason="")`
-    - スキップしたい場合に使用。reasonにスキップ理由を入れられる。
-- `@pytest.mark.skipif()`
-    - 条件付きでスキップしたい場合に使用。
-- `@pytest.mark.xfail()`
-    - 一時的に失敗を許可する場合に使用。
-        - テスト駆動開発などで、先にテストを作る場合
-        -   バグが起こっているが、すぐに対応できない場合(忘れないようにstrict=Trueを付けておく。)<br> など
-- `@pytest.mark.usefixtures(fixture名)`
-    - 使用することで、値を返さないfixtureを引数に渡す必要がなくなる。
-    - ケースにのみ使用できるため、fixtureからfixtureを呼び出す際は引数に設定する必要がある。
+        def test_func_main(mocker):
+            mocker.patch("get_now", return_value=datetime(2023, 1, 9, 20, 0, 0))
+        ~~~
 
 ## 【API】
 - rest_frameworkのAPIClientを利用すると簡単にAPI接続をテストできる。
@@ -157,6 +176,4 @@
         3. 一方、リソースの詳細情報の取得、更新、削除にはname-detailを使用する。
 
 ## 疑問
-- mock, patch周りの違いは？
-- 実装した関数だけでなく、datetime.now()などの標準モジュール等の置き換えは可能？
 - APIClient, CoreAPIClient, RequestsClient辺りの違いは？
