@@ -15,7 +15,6 @@
 - リモート開発にも対応しており、リモートサーバー上でも開発可能。
 - Docker Composeで管理されるマルチコンテナ構成をサポートしているため、複数のコンテナ管理も可能。(docker-compose.ymlを使用する)
 
-
 ## 追加知識
 - devcontainerの中でのGitの利用
 
@@ -30,6 +29,22 @@
 - コンテナ起動時のコマンド実行
     - `"postStartCommand": "実行コマンド"`
 
-- mount
-    - 使ってるけど謎。
-    - https://code.visualstudio.com/remote/advancedcontainers/add-local-file-mount
+- ローカルフォルダにバインドされたマウントを追加する
+    - `"mounts": ["source=,"target=,type=,consistency="]`
+    - `source="パス"`
+        - マウント元のパスを指定する。
+        - `${localEnv:HOME}${localEnv:USERPROFILE}`でホストマシンのユーザーホームディレクトリを示す。
+    - `target="パス"`
+        - マウント先のディレクトリ
+    - `type="文字列"`
+        - マウントの種類を指定する。
+        - bind を指定することで、ボリュームではなくホストマシン上の実際のディレクトリをマウントする。
+    - `consistency="文字列"`
+        - パラメータはマウントの一貫性を指定する。
+        - cached を指定すると、ファイルの変更が最初にアクセスされたときにのみ同期する。
+
+- デフォルトのソースコードマウントを変更する
+    - `"workspaceMount": "source=,"target=,type="`
+    - `"workspaceFolder": "/workspace"`
+
+- 
